@@ -1,0 +1,66 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+  }
+  html, body, #root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background: #0c0e1a;
+    color: #e2e8f0;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+}
+
+@layer components {
+  .glass {
+    @apply bg-white/5 backdrop-blur-md border border-white/10;
+  }
+  .glass-heavy {
+    @apply bg-white/10 backdrop-blur-xl border border-white/15;
+  }
+  .btn-primary {
+    @apply px-4 py-2 bg-brand-500 hover:bg-brand-400 text-white text-sm font-medium rounded-xl transition-all duration-150 active:scale-95 shadow-lg shadow-brand-900/40;
+  }
+  .btn-ghost {
+    @apply px-4 py-2 text-slate-300 hover:text-white hover:bg-white/10 text-sm font-medium rounded-xl transition-all duration-150 active:scale-95;
+  }
+  .btn-danger {
+    @apply px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 text-sm font-medium rounded-xl border border-red-500/20 transition-all duration-150 active:scale-95;
+  }
+  .input-field {
+    @apply w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500/50 transition-all duration-150;
+  }
+  .modal-overlay {
+    @apply fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in;
+  }
+  .modal-panel {
+    @apply glass-heavy rounded-2xl shadow-2xl shadow-black/60 w-full max-w-md animate-slide-up;
+  }
+  .member-card {
+    @apply glass rounded-2xl shadow-xl cursor-pointer select-none transition-all duration-200 hover:border-brand-500/40 hover:shadow-brand-900/30;
+  }
+  .member-card.selected {
+    @apply border-brand-500/70 shadow-brand-900/40 ring-1 ring-brand-500/30;
+  }
+  .relation-label {
+    @apply text-[10px] font-semibold tracking-widest uppercase text-brand-300;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 99px; }
+
+/* Canvas cursor */
+.canvas-panning { cursor: grabbing !important; }
+.canvas-idle     { cursor: grab; }
