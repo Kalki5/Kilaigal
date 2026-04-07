@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { X, Save, AlertCircle, Upload, Image as ImageIcon } from 'lucide-react';
+import { X, Save, AlertCircle, Upload, Image as ImageIcon, Plus } from 'lucide-react';
 import { memberApi } from '../api';
 
 const MemberForm = ({ member, onSave, onCancel, allRelations = [], allMembers = [], onDeleteRelation, onSaveRelation }) => {
@@ -301,7 +301,7 @@ const MemberForm = ({ member, onSave, onCancel, allRelations = [], allMembers = 
                                 <div key={rel.id} className="glass border border-white/[0.03] hover:border-brand-500/20 p-4 rounded-2xl flex items-center justify-between group transition-all duration-300">
                                     {getRelationDisplay(rel)}
                                     <button 
-                                        onClick={() => onDeleteRelation(rel.id)}
+                                        onClick={() => onDeleteRelation(rel.id || (rel.SK ? rel.SK.replace('REL#', '') : undefined))}
                                         className="p-2.5 hover:bg-red-500/10 rounded-xl text-slate-600 hover:text-red-400 transition-all opacity-0 group-hover:opacity-100"
                                         title="Delete connection"
                                     >

@@ -106,12 +106,13 @@ function App() {
   };
 
   const handleMemberMove = async (id, x, y) => {
+    // Update local state smoothly (optimistic update)
+    setMembers(prev => prev.map(m => m.id === id ? { ...m, x, y } : m));
     try {
       await memberApi.updateMemberPosition(id, x, y);
-      // Update local state smoothly
-      setMembers(prev => prev.map(m => m.id === id ? { ...m, x, y } : m));
     } catch (err) {
       console.error('Failed to update position', err);
+      fetchData(); // Rollback on failure
     }
   };
 

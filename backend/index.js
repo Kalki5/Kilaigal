@@ -108,8 +108,12 @@ app.put('/api/members/:id', auth, async (req, res) => {
 app.get('/api/relations', async (req, res) => {
   try {
     const result = await db.query('RELATIONS', 'REL#');
-    console.log(`FETCHED ${result.Items?.length || 0} RELATIONS`);
-    res.json(result.Items || []);
+    const relations = result.Items?.map(item => ({
+        ...item,
+        id: item.id || item.SK?.replace('REL#', '')
+    })) || [];
+    console.log(`FETCHED ${relations.length} RELATIONS`);
+    res.json(relations);
   } catch (err) {
     console.error('FAILED TO FETCH RELATIONS:', err);
     res.status(500).json({ error: err.message });
@@ -121,6 +125,20 @@ app.post('/api/relations', auth, async (req, res) => {
   if (!fromId || !toId || !type) {
       console.error('MISSING RELATION DATA:', req.body);
       return res.status(400).json({ error: 'Missing IDs or type' });
+  }
+  
+  try {
+      const existingQuery = await db.query('RELATIONS', 'REL#');
+      const duplicates = (existingQuery.Items || []).filter(rel => 
+          (rel.fromId === fromId && rel.toId === toId && rel.type === type) ||
+          (rel.fromId === toId && rel.toId === fromId && rel.type === type)
+      );
+
+      if (duplicates.length > 0) {
+          return res.status(400).json({ error: 'Relation already exists' });
+      }
+  } catch (checkErr) {
+      console.warn('Failed to verify dupes:', checkErr);
   }
   
   const relationId = uuidv4(); 
