@@ -54,8 +54,6 @@ app.post('/api/members', auth, async (req, res) => {
     phone,
     photoUrl,
     gender: gender || 'Other',
-    x: x || 0,
-    y: y || 0,
     type: 'MEMBER',
     updatedAt: now,
     createdAt: now,
@@ -70,18 +68,6 @@ app.post('/api/members', auth, async (req, res) => {
   }
 });
 
-app.patch('/api/members/:id/position', auth, async (req, res) => {
-  const { id } = req.params;
-  const { x, y } = req.body;
-  try {
-    await db.updatePosition(id, x, y);
-    // Note: We might want to update updatedAt here too, but for position it might be overkill.
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 app.put('/api/members/:id', auth, async (req, res) => {
   const { id } = req.params;
   const { name, dob, manualAge, location, phone, photoUrl, gender, x, y } = req.body;
@@ -92,7 +78,7 @@ app.put('/api/members/:id', auth, async (req, res) => {
     
     const updated = {
       ...existing.Item,
-      name, dob, manualAge, location, phone, photoUrl, gender, x, y,
+      name, dob, manualAge, location, phone, photoUrl, gender,
       updatedAt: now
     };
     await db.put(updated);

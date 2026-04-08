@@ -17,7 +17,6 @@ export const memberApi = {
   getMembers: () => api.get('/members').then(res => res.data),
   addMember: (data) => api.post('/members', data).then(res => res.data),
   updateMember: (id, data) => api.put(`/members/${id}`, data).then(res => res.data),
-  updateMemberPosition: (id, x, y) => api.patch(`/members/${id}/position`, { x, y }).then(res => res.data),
   uploadPhoto: (file) => {
     const formData = new FormData();
     formData.append('photo', file);

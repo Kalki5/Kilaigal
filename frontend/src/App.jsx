@@ -35,6 +35,8 @@ function App() {
     fetchData();
   }, [fetchData]);
 
+
+
   const handleLogin = (phone) => {
     authApi.login(phone);
     setUser(phone);
@@ -57,44 +59,8 @@ function App() {
       if (editingMember.id) {
         await memberApi.updateMember(editingMember.id, data);
       } else {
-        // Find a free grid spot
-        const gridX = 250; // width + horizontal padding
-        const gridY = 220; // height + vertical padding
-        let x = editingMember?.x || 0;
-        let y = editingMember?.y || 0;
-        
-        let found = false;
-        let ring = 0;
-        const maxRings = 15;
-        
-        // Circular/Spiral search
-        while (!found && ring < maxRings) {
-            for (let i = -ring; i <= ring; i++) {
-                for (let j = -ring; j <= ring; j++) {
-                    // Only check the perimeter of the current ring
-                    if (Math.abs(i) !== ring && Math.abs(j) !== ring && ring !== 0) continue;
-                    
-                    const tx = x + i * gridX;
-                    const ty = y + j * gridY;
-                    
-                    const overlap = members.some(m => 
-                        Math.abs(m.x - tx) < gridX * 0.8 && Math.abs(m.y - ty) < gridY * 0.8
-                    );
-                    
-                    if (!overlap) {
-                        x = tx;
-                        y = ty;
-                        found = true;
-                        break;
-                    }
-                }
-                if (found) break;
-            }
-            ring++;
-        }
-
-        console.log(`Placing new member at: ${x}, ${y} (found in ring ${ring-1})`);
-        await memberApi.addMember({ ...data, x, y });
+        // Find a free grid spot (not needed anymore but keep for fallback)
+        await memberApi.addMember({ ...data });
       }
       setShowMemberForm(false);
       setEditingMember(null);
@@ -105,16 +71,8 @@ function App() {
     }
   };
 
-  const handleMemberMove = async (id, x, y) => {
-    // Update local state smoothly (optimistic update)
-    setMembers(prev => prev.map(m => m.id === id ? { ...m, x, y } : m));
-    try {
-      await memberApi.updateMemberPosition(id, x, y);
-    } catch (err) {
-      console.error('Failed to update position', err);
-      fetchData(); // Rollback on failure
-    }
-  };
+  // Vis-network handles node positions natively; no need to persist.
+  const handleMemberMove = (id, x, y) => {};
 
   const handleMemberClick = (member) => {
     if (relationSource) {

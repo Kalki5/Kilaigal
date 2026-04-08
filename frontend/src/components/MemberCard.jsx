@@ -1,7 +1,7 @@
 import React from 'react';
 import { Share2, MapPin, Phone, Calendar } from 'lucide-react';
 
-const MemberCard = ({ member, onClick, onRelationStart }) => {
+const MemberCard = ({ member, onRelationStart, isHovered }) => {
   const calculateAge = (m) => {
     if (m.dob) {
       const birthDate = new Date(m.dob);
@@ -32,8 +32,8 @@ const MemberCard = ({ member, onClick, onRelationStart }) => {
 
   return (
     <div 
-      onClick={onClick}
-      className={`member-card w-48 p-3 flex flex-col items-center gap-2 group animate-fade-in border-t-2 ${genderColor}`}
+      className={`member-card w-48 p-3 flex flex-col items-center gap-2 animate-fade-in border-t-2 ${genderColor}`}
+      style={{ pointerEvents: 'none' }}
     >
       <div className={`relative w-16 h-16 rounded-full overflow-hidden border-2 ${genderColor}`}>
         {member.photoUrl ? (
@@ -58,10 +58,13 @@ const MemberCard = ({ member, onClick, onRelationStart }) => {
         )}
       </div>
 
-      {/* Relation Button (Hidden until hover) */}
+      {/* Relation Button (Shown based on isHovered prop) */}
       <button 
         onClick={(e) => { e.stopPropagation(); onRelationStart(); }}
-        className="absolute -top-2 -right-2 p-2 glass rounded-full opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100 transition-all hover:bg-brand-500/20 active:scale-90"
+        className={`absolute -top-2 -right-2 p-2 glass rounded-full transition-all hover:bg-brand-500/20 active:scale-90 ${
+          isHovered ? 'opacity-100 scale-100' : 'opacity-0 scale-90'
+        }`}
+        style={{ pointerEvents: isHovered ? 'auto' : 'none' }}
       >
         <Share2 size={14} className="text-brand-300" />
       </button>
