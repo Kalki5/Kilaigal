@@ -34,5 +34,13 @@ export const db = {
       UpdateExpression: "SET x = :x, y = :y",
       ExpressionAttributeValues: { ":x": x, ":y": y },
     }));
+  },
+  async queryIndex(indexName, keyConditionExpression, expressionAttributeValues) {
+    return docClient.send(new QueryCommand({
+      TableName: TABLE_NAME,
+      IndexName: indexName,
+      KeyConditionExpression: keyConditionExpression,
+      ExpressionAttributeValues: expressionAttributeValues,
+    }));
   }
 };

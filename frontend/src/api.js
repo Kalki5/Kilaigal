@@ -23,13 +23,20 @@ export const memberApi = {
     return api.post('/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     }).then(res => res.data);
-  }
+  },
+  getTree: (id, depth = 2) => api.get(`/members/${id}/tree`, { params: { depth } }).then(res => res.data),
+  searchMembers: (query) => api.get('/members/search', { params: { q: query } }).then(res => res.data),
 };
 
 export const relationApi = {
   getRelations: () => api.get('/relations').then(res => res.data),
   addRelation: (data) => api.post('/relations', data).then(res => res.data),
   deleteRelation: (id) => api.delete(`/relations/${id}`).then(res => res.data),
+};
+
+export const aiApi = {
+  findRelationship: (fromMemberId, toMemberId) =>
+    api.post('/ai/relationship', { fromMemberId, toMemberId }).then(res => res.data),
 };
 
 export const authApi = {

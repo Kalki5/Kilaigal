@@ -19,6 +19,30 @@ resource "aws_dynamodb_table" "family_tree" {
     type = "S"
   }
 
+  attribute {
+    name = "fromId"
+    type = "S"
+  }
+
+  attribute {
+    name = "toId"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name               = "MemberRelationsIndex"
+    hash_key           = "fromId"
+    range_key          = "SK"
+    projection_type    = "ALL"
+  }
+
+  global_secondary_index {
+    name               = "TargetRelationsIndex"
+    hash_key           = "toId"
+    range_key          = "SK"
+    projection_type    = "ALL"
+  }
+
   tags = {
     Environment = "production"
     Project     = "Kilaigal"
@@ -69,7 +93,10 @@ resource "aws_iam_role_policy" "lambda_policy" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
-        { Action = ["dynamodb:*"], Effect = "Allow", Resource = aws_dynamodb_table.family_tree.arn },
+        { Action = ["dynamodb:*"], Effect = "Allow", Resource = [
+          aws_dynamodb_table.family_tree.arn,
+          "${aws_dynamodb_table.family_tree.arn}/index/*"
+        ] },
         { Action = ["s3:*"], Effect = "Allow", Resource = "${aws_s3_bucket.media.arn}/*" }
     ]
   })

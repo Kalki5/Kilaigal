@@ -133,7 +133,7 @@ const generateInitialAvatar = (name, gender) => {
 
 // ── Component ────────────────────────────────────────────
 
-const Canvas = ({ members, relations, onMemberClick, onRelationStart, isRelationMode, onMemberMove, centerOnId }) => {
+const Canvas = ({ members, relations, onMemberClick, onMemberDoubleClick, onRelationStart, isRelationMode, onMemberMove, centerOnId, highlightedMemberIds = [], highlightedRelationIds = [] }) => {
   const containerRef = useRef(null);
   const networkRef = useRef(null);
   const nodesDatasetRef = useRef(null);
@@ -141,10 +141,12 @@ const Canvas = ({ members, relations, onMemberClick, onRelationStart, isRelation
 
   // Stable callback refs so vis event handlers always see the latest functions
   const onMemberClickRef = useRef(onMemberClick);
+  const onMemberDoubleClickRef = useRef(onMemberDoubleClick);
   const onMemberMoveRef = useRef(onMemberMove);
   const membersRef = useRef(members);
 
   useEffect(() => { onMemberClickRef.current = onMemberClick; }, [onMemberClick]);
+  useEffect(() => { onMemberDoubleClickRef.current = onMemberDoubleClick; }, [onMemberDoubleClick]);
   useEffect(() => { onMemberMoveRef.current = onMemberMove; }, [onMemberMove]);
   useEffect(() => { membersRef.current = members; }, [members]);
 
@@ -276,6 +278,17 @@ const Canvas = ({ members, relations, onMemberClick, onRelationStart, isRelation
       }
     });
 
+    // Double-click a node → reload tree centered on that member
+    network.on('doubleClick', (params) => {
+      if (params.nodes.length > 0) {
+        const id = params.nodes[0];
+        const member = membersRef.current.find(m => m.id === id);
+        if (member && onMemberDoubleClickRef.current) {
+          onMemberDoubleClickRef.current(member);
+        }
+      }
+    });
+
     return () => {
       network.destroy();
       networkRef.current = null;
@@ -380,6 +393,84 @@ const Canvas = ({ members, relations, onMemberClick, onRelationStart, isRelation
       }, 200);
     }
   }, [centerOnId, members.length]);
+
+  // ── Apply / remove path highlighting ──
+  useEffect(() => {
+    const nodesDS = nodesDatasetRef.current;
+    const edgesDS = edgesDatasetRef.current;
+    if (!nodesDS || !edgesDS) return;
+
+    const highlightedMemberSet = new Set(highlightedMemberIds);
+    const highlightedRelationSet = new Set(highlightedRelationIds);
+    const hasHighlights = highlightedMemberIds.length > 0 || highlightedRelationIds.length > 0;
+
+    // Update nodes: apply gold border for highlighted members, reset others to gender-based colors
+    const nodeUpdates = [];
+    members.forEach(m => {
+      const gs = genderStyle(m.gender);
+      if (hasHighlights && highlightedMemberSet.has(m.id)) {
+        nodeUpdates.push({
+          id: m.id,
+          borderWidth: 4,
+          color: {
+            border: '#f59e0b',
+            background: '#0f172a',
+            highlight: { border: '#fbbf24', background: '#1e293b' },
+            hover: { border: '#fbbf24', background: '#1e293b' }
+          }
+        });
+      } else {
+        nodeUpdates.push({
+          id: m.id,
+          borderWidth: 3,
+          color: {
+            border: gs.borderColor,
+            background: '#0f172a',
+            highlight: { border: gs.highlightBorder, background: '#1e293b' },
+            hover: { border: gs.hoverBorder, background: '#1e293b' }
+          }
+        });
+      }
+    });
+    if (nodeUpdates.length > 0) {
+      nodesDS.update(nodeUpdates);
+    }
+
+    // Update edges: apply gold color for highlighted relations, reset others to type-based colors
+    const edgeUpdates = [];
+    relations.forEach(rel => {
+      const edgeId = rel.id || `${rel.fromId}-${rel.toId}`;
+      const isSpouse = rel.type === 'Spouse';
+      const isSibling = rel.type === 'Sibling';
+
+      if (hasHighlights && highlightedRelationSet.has(rel.id)) {
+        edgeUpdates.push({
+          id: edgeId,
+          width: 3,
+          color: {
+            color: 'rgba(245,158,11,0.7)',
+            highlight: '#f59e0b',
+            hover: 'rgba(245,158,11,0.9)',
+            inherit: false
+          }
+        });
+      } else {
+        edgeUpdates.push({
+          id: edgeId,
+          width: 2,
+          color: {
+            color: isSpouse ? 'rgba(236,72,153,0.5)' : isSibling ? 'rgba(100,116,139,0.5)' : 'rgba(61,86,240,0.45)',
+            highlight: isSpouse ? '#ec4899' : isSibling ? '#94a3b8' : '#3d56f0',
+            hover: isSpouse ? 'rgba(236,72,153,0.7)' : isSibling ? 'rgba(100,116,139,0.7)' : 'rgba(61,86,240,0.7)',
+            inherit: false
+          }
+        });
+      }
+    });
+    if (edgeUpdates.length > 0) {
+      edgesDS.update(edgeUpdates);
+    }
+  }, [highlightedMemberIds, highlightedRelationIds, members, relations]);
 
   return (
     <div className="relative w-full h-full overflow-hidden bg-slate-950">
