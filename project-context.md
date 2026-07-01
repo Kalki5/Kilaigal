@@ -17,21 +17,26 @@ Kilaigal is a full-stack family tree visualization and management app. Users cre
 
 ### Backend
 - **Express 5** (Node.js, ES modules)
-- **DynamoDB** via `@aws-sdk/client-dynamodb` and `@aws-sdk/lib-dynamodb`
+- **SurrealDB** via the `surrealdb` JS SDK — native graph edges (`RELATE`) and
+  traversal. Connection config in gitignored `backend/.env` (see `.env.example`).
+- **Deterministic Tamil kinship engine** (`services/kinship/`) — resolves a graph
+  path to a community-independent kin-slot, then a switchable terminology pack
+  maps slot → surface term. The LLM is used only for narration.
 - **Multer** for photo uploads (stored locally in `backend/uploads/`)
 - **serverless-http** wrapper for AWS Lambda deployment
 - **uuid** for ID generation
 
 ### Infrastructure
-- **Terraform** provisioning on AWS
-- DynamoDB table (`FamilyTreeTable`, on-demand billing, PK/SK single-table design)
+- **Terraform** provisioning on AWS (the DynamoDB table resource is superseded by
+  SurrealDB hosting — Surreal Cloud in production; `main.tf` still to be updated)
 - Lambda function behind API Gateway v2 (HTTP API)
 - S3 buckets for frontend static hosting and media
 - CloudFront CDN with S3 origin (frontend) and API Gateway origin (`/api/*`)
 
 ### Local Development
-- `docker-compose.yml` runs DynamoDB Local on port 8000
-- `backend/local.js` starts Express on port 3001, auto-creates the DynamoDB table
+- `docker-compose.yml` runs SurrealDB on port 8000 (rocksdb-backed)
+- `backend/local.js` starts Express on port 3001 and applies `schema.surql`
+- `npm run db:push` applies the schema to whatever `backend/.env` points at
 - Vite dev server on port 5173 proxies `/api` to `http://localhost:3001`
 - Root `npm run dev` uses `concurrently` to start both frontend and backend
 
@@ -65,52 +70,46 @@ Kilaigal is a full-stack family tree visualization and management app. Users cre
 └── package.json          # Root scripts (dev, install:all, infra:*)
 ```
 
-## Database Schema (DynamoDB Single-Table)
+## Database Schema (SurrealDB graph — `backend/schema.surql`)
 
-**Table:** `FamilyTreeTable` — PK (String), SK (String)
+Only **primitive** facts are stored as graph edges; siblings-by-blood,
+grandparents, uncles, cousins, in-laws, and all Tamil terms are **derived** by
+walking paths (see the kinship engine).
 
-### Member Item
-| Field       | Description                                |
-|-------------|--------------------------------------------|
-| PK          | `"MEMBERS"`                                |
-| SK          | `"MEMBER#{uuid}"`                          |
-| id          | UUID                                       |
-| name        | Full name                                  |
-| dob         | ISO date string or null                    |
-| manualAge   | Number (used when dob is null)             |
-| location    | City/location string                       |
-| phone       | Phone number                               |
-| photoUrl    | URL to uploaded photo                      |
-| gender      | `"Male"` / `"Female"` / `"Other"`         |
-| createdAt   | ISO timestamp                              |
-| updatedAt   | ISO timestamp                              |
-| createdBy   | Phone of the user who created this member  |
+- **`member`** (record table): `name`, `gender`, `dob`, `manualAge`, `location`,
+  `phone`, `photoUrl`, `x`, `y`, `componentId`, `createdBy`, timestamps.
+- **`parent_of`** (`RELATION` edge): directed **parent → child**. Traversed both
+  ways (`->parent_of->` children, `<-parent_of<-` parents). Field: `kind`
+  (`birth`/`adopted`/`step`/`foster`).
+- **`married_to`** (edge): one per couple, undirected in queries. Fields:
+  `status`, `since`, `until`.
+- **`sibling_of`** (edge): stored only when shared parentage is unknown.
+- **`component`**: connected-component records for the "largest tree" counter.
 
-### Relation Item
-| Field       | Description                                |
-|-------------|--------------------------------------------|
-| PK          | `"RELATIONS"`                              |
-| SK          | `"REL#{uuid}"`                             |
-| id          | UUID                                       |
-| fromId      | Source member UUID                          |
-| toId        | Target member UUID                         |
-| type        | `"Parent"` / `"Child"` / `"Spouse"` / `"Sibling"` |
-| createdAt   | ISO timestamp                              |
-| createdBy   | Phone of the user who created this relation|
+The external HTTP relation shape stays `{ id, fromId, toId, type }` with
+`type ∈ Parent|Child|Spouse|Sibling`; `store/relations.js` maps it onto the
+primitive edges (Parent/Child ↔ `parent_of`, Spouse ↔ `married_to`, Sibling ↔
+`sibling_of`), so the frontend is unaffected by the storage change.
 
 ## API Endpoints
 
-| Method   | Path                | Auth | Description                        |
-|----------|---------------------|------|------------------------------------|
-| GET      | `/api/members`      | No   | List all members                   |
-| POST     | `/api/members`      | Yes  | Create a member                    |
-| PUT      | `/api/members/:id`  | Yes  | Update a member                    |
-| GET      | `/api/relations`    | No   | List all relations                 |
-| POST     | `/api/relations`    | Yes  | Create a relation (duplicate check)|
-| DELETE   | `/api/relations/:id`| Yes  | Delete a relation                  |
-| POST     | `/api/upload`       | Yes  | Upload a photo (multipart/form-data)|
+| Method   | Path                          | Auth | Description                          |
+|----------|-------------------------------|------|--------------------------------------|
+| GET      | `/api/members`                | No   | List all members                     |
+| POST     | `/api/members`                | Yes  | Create a member                      |
+| PUT      | `/api/members/:id`            | Yes  | Update a member                      |
+| PATCH    | `/api/members/:id/position`   | Yes  | Persist a dragged node position      |
+| GET      | `/api/members/search?q=`      | No   | Search members (min 2 chars)         |
+| GET      | `/api/members/:id/tree?depth=`| No   | BFS neighborhood subgraph            |
+| GET      | `/api/members/:id/component`  | No   | Connected-component id + size        |
+| GET      | `/api/relations`              | No   | List all relations                   |
+| POST     | `/api/relations`              | Yes  | Create a relation (duplicate check)  |
+| DELETE   | `/api/relations/:id`          | Yes  | Delete a relation                    |
+| POST     | `/api/upload`                 | Yes  | Upload a photo (multipart/form-data) |
+| GET      | `/api/kinship/packs`          | No   | List terminology packs               |
+| POST     | `/api/ai/relationship`        | Yes  | Resolve kin term (+ optional narration) |
 
-Auth is a simple `x-user-phone` header check — no tokens or passwords.
+Auth is a simple `x-user-phone` header check — a handle only, no tokens/passwords.
 
 ## UI Patterns & Conventions
 

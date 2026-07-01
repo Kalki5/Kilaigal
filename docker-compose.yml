@@ -1,12 +1,19 @@
 version: '3.8'
 
 services:
-  dynamodb-local:
-    command: "-jar DynamoDBLocal.jar -sharedDb -dbPath ./data"
-    image: "amazon/dynamodb-local:latest"
-    container_name: dynamodb-local
+  surrealdb:
+    image: surrealdb/surrealdb:latest
+    container_name: kilaigal-surrealdb
+    command: start --user root --pass root --bind 0.0.0.0:8000 rocksdb:/data/kilaigal.db
     ports:
       - "8000:8000"
     volumes:
-      - "./docker/dynamodb:/home/dynamodblocal/data"
-    working_dir: /home/dynamodblocal
+      - "./docker/surrealdb:/data"
+
+# Local dev against this instance: set backend/.env to
+#   SURREAL_URL=http://localhost:8000
+#   SURREAL_NS=kalki5
+#   SURREAL_DB=kilaigal
+#   SURREAL_USER=root
+#   SURREAL_PASS=root
+# then: npm run db:push   (applies backend/schema.surql)

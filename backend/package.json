@@ -4,20 +4,20 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "vitest --run"
+    "test": "vitest --run",
+    "db:push": "node scripts/pushSchema.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@aws-sdk/client-dynamodb": "^3.1025.0",
-    "@aws-sdk/lib-dynamodb": "^3.1025.0",
     "@google/genai": "^1.51.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.1",
     "express": "^5.2.1",
     "multer": "^2.1.1",
     "serverless-http": "^4.0.0",
+    "surrealdb": "^2.0.4",
     "uuid": "^13.0.0"
   },
   "type": "module",

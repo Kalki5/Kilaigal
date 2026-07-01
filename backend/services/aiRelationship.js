@@ -1,48 +1,61 @@
 import { GoogleGenAI } from "@google/genai";
-import { findShortestPath } from "./graphTraversal.js";
+import { findShortestPath } from "./traversal.js";
+import { pathToSteps } from "./pathToSteps.js";
+import { describePath } from "./kinship/index.js";
 
 /**
- * Find the relationship between two members and describe it in natural language.
- * Uses Graph Traversal Service to find the shortest path, then calls Google AI
- * Studio (Gemma 4) to produce a natural-language description.
+ * Describe the relationship between two members.
  *
- * @param {string} fromMemberId - UUID of person A
- * @param {string} toMemberId - UUID of person B
- * @returns {Promise<{ path: object[], description: string|null, error?: string }>}
+ * The kinship engine is authoritative: shortest path -> steps -> { slot, term }.
+ * The LLM is only used to phrase a friendly sentence around the resolved term,
+ * and never determines the relationship itself. If the LLM is unavailable we
+ * still return a deterministic description built from the term.
+ *
+ * @param {string} fromMemberId
+ * @param {string} toMemberId
+ * @param {string} [packId] terminology pack (spoken-tamil default)
  */
-export async function describeRelationship(fromMemberId, toMemberId) {
+export async function describeRelationship(fromMemberId, toMemberId, packId) {
   const path = await findShortestPath(fromMemberId, toMemberId);
 
-  if (path.length === 0) {
-    return {
-      path: [],
-      description: "No known relationship path found between these two members.",
-    };
+  if (!path || path.members.length === 0) {
+    return { path: [], slot: null, term: null, description: "No known relationship path found between these two members." };
   }
 
-  // Build the path string for the prompt
-  // e.g. "Alice --[Parent]--> Bob --[Spouse]--> Carol"
-  const pathSegments = path.map((step, index) => {
-    if (index < path.length - 1) {
-      return `${step.memberName} --[${step.relationType}]-->`;
-    }
-    return step.memberName;
-  });
-  const pathString = pathSegments.join(" ");
+  const steps = pathToSteps(path.members, path.edges);
+  const { slot, term } = describePath(steps, packId);
 
-  const firstPersonName = path[0].memberName;
-  const lastPersonName = path[path.length - 1].memberName;
+  // External path shape (kept stable for the frontend).
+  const apiPath = path.members.map((m, i) => ({
+    memberId: m.id,
+    memberName: m.name,
+    relationType: i < path.edges.length ? path.edges[i].type : null,
+  }));
 
-  const promptText = `You are a family relationship expert. Given the following family tree path, describe the relationship between the first and last person in simple, natural language. Include the specific relationship term (e.g., uncle, grandmother, cousin) if applicable.
+  const fromName = path.members[0].name;
+  const toName = path.members[path.members.length - 1].name;
+  const termLabel = term?.script ? `${term.romanized} (${term.script})` : term?.romanized;
+  const fallback = termLabel
+    ? `${toName} is ${fromName}'s ${termLabel}.`
+    : `${toName} is related to ${fromName}.`;
 
-Path:
-${pathString}
+  const description = await narrate({ fromName, toName, termLabel, apiPath }).catch(() => null);
+  return { path: apiPath, slot, term, description: description || fallback };
+}
 
-Describe how ${firstPersonName} is related to ${lastPersonName}.`;
+async function narrate({ fromName, toName, termLabel, apiPath }) {
+  if (!process.env.GOOGLE_AI_API_KEY) return null;
+
+  const pathString = apiPath
+    .map((step, i) => (i < apiPath.length - 1 ? `${step.memberName} --[${step.relationType}]-->` : step.memberName))
+    .join(" ");
+
+  const promptText = `You are a Tamil family relationship expert. The kinship term has already been computed as "${termLabel}". Write one short, natural sentence explaining how ${toName} is related to ${fromName}, using that term. Do not contradict it.
+
+Path: ${pathString}`;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10000);
-
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_AI_API_KEY });
     const response = await ai.models.generateContent({
@@ -50,11 +63,7 @@ Describe how ${firstPersonName} is related to ${lastPersonName}.`;
       contents: promptText,
       config: { abortSignal: controller.signal },
     });
-    const description = response.text;
-
-    return { path, description };
-  } catch {
-    return { path, description: null, error: "AI service unavailable" };
+    return response.text || null;
   } finally {
     clearTimeout(timeout);
   }
