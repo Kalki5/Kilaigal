@@ -4,8 +4,10 @@
 > migration + Tamil kinship work without re-deriving decisions. Read this, then
 > `docs/surrealdb-graph-design.md` for the full design.
 
-Working branch: **`claude/dynamodb-surrealdb-graph-5fn570`** (develop + push here; do
-not push elsewhere without permission).
+Working branch: **`claude/db-setup-development-ow68zo`** (develop + push here; do
+not push elsewhere without permission). The prior branch
+(`claude/dynamodb-surrealdb-graph-5fn570`) was merged into `main` via PR #1 —
+this branch continues from there.
 
 ## What this project is
 
@@ -60,30 +62,46 @@ graph** with a **deterministic Tamil kinship engine**.
 - **Local dev**: `docker-compose.yml` runs SurrealDB; `local.js` applies schema.
 - **Tests: 93 passing** (`cd backend && npm test`). Kinship suite = 25.
 
-## ⚠️ NOT yet verified against a live DB (do this first in the new session)
+## ⚠️ STILL NOT verified against a live DB — this is an environment egress problem, not code
 
-The previous container's egress was bound before `*.surreal.cloud` was allowed,
-so the schema was never pushed and no live query ran. **First actions:**
+Two containers in a row have been unable to reach Surreal Cloud. Findings from
+this session, so the next one doesn't re-diagnose from scratch:
 
-1. Confirm egress works: `curl -sS https://<instance>.surreal.cloud/version`
-   (should NOT be a 403 CONNECT). If still 403, check the proxy status endpoint.
-2. `cd backend && npm run db:push` (applies `schema.surql`).
-3. Start the app / hit endpoints and **validate the parts that are logic-only so
-   far**:
-   - `store/relations.js` `RELATE` + `store/graph.js` edge queries (SurrealQL
-     syntax, RecordId param handling).
-   - `store/components.js` **union-find** — merging components on edge write.
-   - Recursive/graph query behavior against the **actual SurrealDB version**
-     (pin it; the `.{..N}` recursive syntax noted in the design doc is 2.x and
-     was NOT used — traversal is level-wise BFS, which is version-safe).
-4. Fix any SurrealQL/SDK mismatches found, keep tests green, commit.
+1. **The host is not allowlisted for this environment**, confirmed two ways:
+   - `curl https://<instance>.surreal.cloud/version` → `403 CONNECT tunnel
+     failed`; `curl "$HTTPS_PROXY/__agentproxy/status"` shows
+     `recentRelayFailures: connect_rejected` (policy denial) for that host.
+   - The SurrealDB JS SDK's own HTTP engine reports it more explicitly:
+     `HttpConnectionError: Host not in allowlist: <instance>.surreal.cloud.
+     Add this host to your network egress settings to allow access.`
+   - **Fix:** the user/admin must add the Surreal Cloud host (or
+     `*.surreal.cloud`) to this environment's network egress allowlist. Not
+     something fixable from inside the session.
+2. **Separately, `surreal.js` used to connect over WebSocket (`wss://.../rpc`)**
+   for live-query support. This session's proxy docs list WebSocket upgrades
+   as unsupported through it regardless of host allowlisting (plain HTTPS
+   CONNECT tunnels only). **Fixed**: `surreal.js` now connects over
+   `https://.../rpc` so the SDK selects its `HttpEngine` instead of
+   `WebSocketEngine` — protocol-compatible with proxied environments. Trade-off:
+   no `LIVE SELECT` support, which nothing in this codebase currently uses. If
+   a future environment allows raw WebSocket egress and live queries become
+   needed, revert to `wss://` (see git history on this file).
+3. Once egress is actually open, resume the original plan:
+   - `cd backend && npm run db:push` (applies `schema.surql`).
+   - Validate `store/relations.js` `RELATE` + `store/graph.js` edge queries
+     (SurrealQL syntax, RecordId param handling), `store/components.js`
+     union-find merging, and recursive/graph query behavior against the
+     **actual SurrealDB version** (pin it; traversal is level-wise BFS, which
+     is version-safe regardless).
+   - Fix any SurrealQL/SDK mismatches found, keep tests green, commit.
 
 ## Credentials
 
 In gitignored `backend/.env` (NEVER commit): `SURREAL_URL`, `SURREAL_NS=kalki5`,
-`SURREAL_DB=kilaigal`, `SURREAL_USER`, `SURREAL_PASS`. `.env.example` has the
-placeholder shape. If `.env` is missing (fresh container), recreate it from the
-creds the user provided.
+`SURREAL_DB=kilaigal`, `SURREAL_USER=kilaigal`, `SURREAL_PASS`. `.env.example`
+has the placeholder shape. `.env` currently exists in this container with the
+live Surreal Cloud creds the user provided (NS `kalki5`, DB `kilaigal`); if
+missing in a fresh container, ask the user for creds again — do not guess.
 
 ## Next up (after live verification)
 

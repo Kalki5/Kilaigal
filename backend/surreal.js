@@ -1,15 +1,17 @@
 import { Surreal } from "surrealdb";
 
 // Lazy singleton connection to SurrealDB.
-// Endpoint: SDK connects to the RPC endpoint; prefer WebSocket (wss) so live
-// queries work. Surreal Cloud gives an https base URL — derive wss .../rpc.
+// Endpoint: the SDK auto-selects an engine from the URL scheme. We use the
+// HTTP(S) engine (per-request RPC over plain HTTPS) rather than WebSocket
+// (wss) because this deployment's outbound network policy only allows plain
+// HTTPS CONNECT tunnels — WebSocket upgrades are not supported. Trade-off:
+// no live queries (SurrealDB `LIVE SELECT`), which this codebase doesn't use.
 
 let dbPromise = null;
 
 function rpcEndpoint(url) {
   const base = (url || "").replace(/\/+$/, "");
-  const ws = base.replace(/^http/, "ws"); // http->ws, https->wss
-  return `${ws}/rpc`;
+  return `${base}/rpc`;
 }
 
 async function connect() {
